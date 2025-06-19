@@ -45,7 +45,7 @@ This project focuses on **real-time communication**, **data security**, and **sc
 
 ## 📸 Demo
 
- Video Demo On [LinkedIn]([https://www.linkedin.com/in/sourav-agarwal-393658259/](https://www.linkedin.com/feed/update/urn:li:activity:7341091977410527232/))
+ Video Demo On [LinkedIn](https://www.linkedin.com/in/sourav-agarwal-393658259/](https://www.linkedin.com/feed/update/urn:li:activity:7341091977410527232/)
 
 ---
 
