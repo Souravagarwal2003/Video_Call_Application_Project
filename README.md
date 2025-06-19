@@ -39,9 +39,9 @@ This project focuses on **real-time communication**, **data security**, and **sc
 
 ---
 
-## 📸 Screenshots / Demo
+## 📸 Demo
 
-> Video Demo On [LinkedIn](https://www.linkedin.com/in/sourav-agarwal-393658259/)
+ Video Demo On [LinkedIn](https://www.linkedin.com/in/sourav-agarwal-393658259/)
 
 ---
 
@@ -93,11 +93,5 @@ Feel free to fork the repository and open a pull request.
 
 Created by **Sourav Agarwal** – [LinkedIn](https://www.linkedin.com/in/sourav-agarwal-393658259/)
 Feel free to reach out for feedback, ideas, or collaboration!
-
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
 
 ---
