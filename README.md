@@ -13,9 +13,13 @@ This project focuses on **real-time communication**, **data security**, and **sc
 ## 🚀 Features
 
  ✅ **Secure video calls** using **WebRTC**
+ 
  ✅ **Screen sharing** for enhanced collaboration
+ 
  ✅ **Real-time chat support** during video calls
+ 
  ✅ **Meeting recording and playback** functionality
+ 
  ✅ **Peer-to-peer encryption** to ensure secure communication
 
 ---
@@ -85,6 +89,7 @@ npm run dev
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!
+
 Feel free to fork the repository and open a pull request.
 
 ---
@@ -92,6 +97,7 @@ Feel free to fork the repository and open a pull request.
 ## 📧 Contact
 
 Created by **Sourav Agarwal** – [LinkedIn](https://www.linkedin.com/in/sourav-agarwal-393658259/)
+
 Feel free to reach out for feedback, ideas, or collaboration!
 
 ---
