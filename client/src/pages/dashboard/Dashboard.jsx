@@ -73,11 +73,9 @@ function Dashboard() {
     setIsSidebarOpen(false);
   }, []);
 
-  useEffect(() => {
+   useEffect(() => {
     return () => {
-      recordings.forEach(({ url }) => {
-        URL.revokeObjectURL(url);
-      });
+      recordings.forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, [recordings]);
 
@@ -480,42 +478,67 @@ function Dashboard() {
     setChatInput("");
   };
 
-  const startRecording = () => {
-    if (!stream) {
-      alert("Start or accept a call first to record video.");
-      return;
-    }
+  const startRecording = async () => {
+  try {
+    // Request screen stream
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { mediaSource: 'screen' },
+      audio: true, // some browsers allow system audio here
+    });
 
-    let chunks = []; // local chunks collector
+    // Request microphone audio (optional fallback)
+    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    try {
-      const options = { mimeType: "video/webm" };
-      const recorder = new MediaRecorder(stream, options);
+    // Merge screen video + mic audio
+    const combinedStream = new MediaStream([
+      ...screenStream.getVideoTracks(),
+      ...audioStream.getAudioTracks()
+    ]);
 
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          chunks.push(e.data);
-        }
-      };
+    // Create MediaRecorder
+    const options = { mimeType: 'video/webm; codecs=vp9' };
+    const recorder = new MediaRecorder(combinedStream, options);
 
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: "video/webm" });
-        const url = URL.createObjectURL(blob);
+    let chunks = [];
 
-        setRecordings((prev) => [
-          ...prev,
-          { id: Date.now(), url, createdAt: new Date().toISOString() },
-        ]);
-      };
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
 
-      recorder.start();
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-    } catch (error) {
-      console.error("Error starting recording:", error);
-      alert("MediaRecorder not supported or error occurred.");
-    }
-  };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+
+      setRecordings((prev) => [
+        ...prev,
+        { id: Date.now(), url, createdAt: new Date().toISOString() },
+      ]);
+
+      // Optional: Auto download
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `recording-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    };
+
+    recorder.start();
+    setMediaRecorder(recorder);
+    setIsRecording(true);
+
+    // Stop sharing when user ends screen share manually
+    screenStream.getVideoTracks()[0].onended = () => {
+      stopRecording();
+    };
+
+  } catch (error) {
+    console.error('Error starting full-screen recording:', error);
+    alert('Screen recording failed. Grant permission and try again.');
+  }
+};
+
 
   const stopRecording = () => {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -680,21 +703,6 @@ function Dashboard() {
                   </button>
                 )}
               </div>
-
-              {recordings.length > 0 && (
-                <div className="mt-3 w-full overflow-auto max-h-[150px]">
-                  <h4 className="text-white text-sm mb-2">Recordings:</h4>
-                  {recordings.map(({ id, url, createdAt }) => (
-                    <video
-                      key={id}
-                      controls
-                      src={url}
-                      className="w-full rounded mb-2"
-                      title={`Recorded at ${new Date(createdAt).toLocaleTimeString()}`}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
 
             <div className="absolute top-4 left-4 text-white text-lg font-bold flex gap-2 items-center">
