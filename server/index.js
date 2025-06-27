@@ -43,7 +43,7 @@ app.use(cookieParser()); // Enables reading cookies in HTTP requests
 app.use("/api/auth", authRoute); // Authentication routes (login, signup, logout)
 app.use("/api/user", userRoute); // User-related routes (profile, settings)
 
-app.get('/ok', (req, res) => {
+app.get('/', (req, res) => {
   res.json("Server is running!");
 })
 
