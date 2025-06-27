@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import socketInstance from '../socket/SocketContext';
-import { FaTimes, FaPhoneAlt, FaMicrophone, FaVideo, FaVideoSlash, FaMicrophoneSlash, FaDoorClosed, FaBars, FaShareAlt, FaStop } from "react-icons/fa";
+import { FaTimes, FaPhoneAlt, FaMicrophone, FaVideo, FaVideoSlash, FaMicrophoneSlash, FaDoorClosed, FaBars, FaShareAlt, FaCommentDots, FaStop } from "react-icons/fa";
 import Lottie from "lottie-react";
 import { Howl } from "howler";
 import wavingAnimation from "../../assets/waving.json";
@@ -54,6 +54,7 @@ function Dashboard() {
   // Chat state
   const [chatMessages, setChatMessages] = useState([]); // List of messages in current chat (with selected user or caller)
   const [chatInput, setChatInput] = useState("");
+  const [isChatMinimized, setIsChatMinimized] = useState(false);
   const ringtone = useRef(null);
 
   // Sound for ringtone
@@ -73,7 +74,7 @@ function Dashboard() {
     setIsSidebarOpen(false);
   }, []);
 
-   useEffect(() => {
+  useEffect(() => {
     return () => {
       recordings.forEach(({ url }) => URL.revokeObjectURL(url));
     };
@@ -703,6 +704,21 @@ function Dashboard() {
                   </button>
                 )}
               </div>
+
+              {/* {recordings.length > 0 && (
+                <div className="mt-3 w-full overflow-auto max-h-[150px]">
+                  <h4 className="text-white text-sm mb-2">Recordings:</h4>
+                  {recordings.map(({ id, url, createdAt }) => (
+                    <video
+                      key={id}
+                      controls
+                      src={url}
+                      className="w-full rounded mb-2"
+                      title={`Recorded at ${new Date(createdAt).toLocaleTimeString()}`}
+                    />
+                  ))}
+                </div>
+              )} */}
             </div>
 
             <div className="absolute top-4 left-4 text-white text-lg font-bold flex gap-2 items-center">
@@ -757,73 +773,94 @@ function Dashboard() {
             )}
           </div>
 
-          <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen">
-            <div className="p-4 border-b border-gray-700 flex items-center gap-3 sticky top-0 bg-gray-900 z-20">
-              <img
-                src={chatPartnerUser?.profilepic || "/default-avatar.png"}
-                alt="Chat Partner"
-                className="w-12 h-12 rounded-full border border-white"
-              />
-              <div>
-                <h2 className="font-bold text-lg">
-                  {chatPartnerUser?.username || "Unknown User"}
-                </h2>
-                {isOnlineUser(chatPartnerUser) && (
-                  <span className="text-green-400 text-sm">Online</span>
-                )}
+          { !isChatMinimized ? (
+            <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen transition-all duration-300">
+              <div className="p-4 border-b border-gray-700 flex items-center gap-3 sticky top-0 bg-gray-900 z-20">
+                <img
+                  src={chatPartnerUser?.profilepic || "/default-avatar.png"}
+                  alt="Chat Partner"
+                  className="w-12 h-12 rounded-full border border-white"
+                />
+                <div className="flex-1">
+                  <h2 className="font-bold text-lg">
+                    {chatPartnerUser?.username || "Unknown User"}
+                  </h2>
+                  {isOnlineUser(chatPartnerUser) && (
+                    <span className="text-green-400 text-sm">Online</span>
+                  )}
+                </div>
+                {/* Minimize chat button */}
+                <button
+                  type="button"
+                  className="text-white hover:text-gray-400 ml-2"
+                  onClick={() => setIsChatMinimized(true)}
+                  title="Minimize Chat"
+                >
+                  <FaTimes size={20} />
+                </button>
               </div>
-            </div>
 
-            <div
-              className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800"
-              id="chat-messages"
-            >
-              {chatMessages.length === 0 && (
-                <p className="text-gray-500 text-center mt-6">Start the conversation!</p>
-              )}
+              <div
+                className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800"
+                id="chat-messages"
+              >
+                {chatMessages.length === 0 && (
+                  <p className="text-gray-500 text-center mt-6">Start the conversation!</p>
+                )}
 
-              {chatMessages.map((msg, index) => {
-                const isMe = msg.from === me;
-                return (
-                  <div
-                    key={index}
-                    className={`flex ${isMe ? "justify-end" : "justify-start"}`}
-                  >
+                {chatMessages.map((msg, index) => {
+                  const isMe = msg.from === me;
+                  return (
                     <div
-                      className={`max-w-xs md:max-w-md px-3 py-2 rounded-lg break-words whitespace-pre-wrap ${isMe ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-200"
-                        }`}
+                      key={index}
+                      className={`flex ${isMe ? "justify-end" : "justify-start"}`}
                     >
-                      <div className="text-sm">{msg.content}</div>
-                      <div className="text-[10px] text-gray-300 text-right mt-1 select-none">
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div
+                        className={`max-w-xs md:max-w-md px-3 py-2 rounded-lg break-words whitespace-pre-wrap ${isMe ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-200"
+                          }`}
+                      >
+                        <div className="text-sm">{msg.content}</div>
+                        <div className="text-[10px] text-gray-300 text-right mt-1 select-none">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <form
-              onSubmit={sendMessage}
-              className="flex p-3 border-t border-gray-700 bg-gray-800 rounded-b-lg"
-            >
-              <input
-                type="text"
-                placeholder="Type a message..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                className="flex-1 rounded-lg px-3 py-2 focus:outline-none text-white"
-                disabled={!chatPartnerId}
-              />
-              <button
-                type="submit"
-                className="ml-2 bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!chatInput.trim() || !chatPartnerId}
+              <form
+                onSubmit={sendMessage}
+                className="flex p-3 border-t border-gray-700 bg-gray-800 rounded-b-lg"
               >
-                Send
-              </button>
-            </form>
-          </div>
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 rounded-lg px-3 py-2 focus:outline-none text-white"
+                  disabled={!chatPartnerId}
+                />
+                <button
+                  type="submit"
+                  className="ml-2 bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!chatInput.trim() || !chatPartnerId}
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+          ) : (
+            // Minimized chat panel bar
+            <div
+              className="fixed bottom-4 right-4 z-50 bg-gray-900 text-white rounded-lg shadow-lg cursor-pointer p-2 flex items-center gap-2"
+              onClick={() => setIsChatMinimized(false)}
+              title="Open Chat"
+              style={{ width: '60px', height: '40px' }}
+            >
+              <FaCommentDots size={24} />
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex-1 p-6 md:ml-72 text-white">
