@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import socketInstance from '../socket/SocketContext';
-import { FaTimes, FaPhoneAlt, FaMicrophone, FaVideo, FaVideoSlash, FaMicrophoneSlash, FaDoorClosed, FaBars, FaShareAlt, FaCommentDots, FaStop } from "react-icons/fa";
+import { FaTimes, FaPhoneAlt, FaMicrophone, FaVideo, FaVideoSlash, FaWindowRestore, FaMinus, FaMicrophoneSlash, FaDoorClosed, FaBars, FaShareAlt, FaCommentDots, FaStop } from "react-icons/fa";
 import Lottie from "lottie-react";
 import { Howl } from "howler";
 import wavingAnimation from "../../assets/waving.json";
@@ -20,6 +20,7 @@ function Dashboard() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userOnline, setUserOnline] = useState([]);
   const [stream, setStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
   const [me, setMe] = useState("");
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [modalUser, setModalUser] = useState(null);
@@ -55,6 +56,7 @@ function Dashboard() {
   const [chatMessages, setChatMessages] = useState([]); // List of messages in current chat (with selected user or caller)
   const [chatInput, setChatInput] = useState("");
   const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [isSelfCameraMinimized, setIsSelfCameraMinimized] = useState(false);
   const ringtone = useRef(null);
 
   // Sound for ringtone
@@ -79,6 +81,23 @@ function Dashboard() {
       recordings.forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, [recordings]);
+
+  useEffect(() => {
+    async function setupStreams() {
+      try {
+        const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setStream(currentStream);
+        if (myVideo.current) myVideo.current.srcObject = currentStream;
+
+        // For demo: assign remoteStream same as stream, replace with remote peer stream in real app
+        setRemoteStream(currentStream);
+        if (reciverVideo.current) reciverVideo.current.srcObject = currentStream;
+      } catch (error) {
+        console.error("Error accessing media devices:", error);
+      }
+    }
+    setupStreams();
+  }, []);
 
   useEffect(() => {
     if (user && socket && !hasJoined.current) {
@@ -480,65 +499,65 @@ function Dashboard() {
   };
 
   const startRecording = async () => {
-  try {
-    // Request screen stream
-    const screenStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { mediaSource: 'screen' },
-      audio: true, // some browsers allow system audio here
-    });
+    try {
+      // Request screen stream
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: 'screen' },
+        audio: true, // some browsers allow system audio here
+      });
 
-    // Request microphone audio (optional fallback)
-    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone audio (optional fallback)
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    // Merge screen video + mic audio
-    const combinedStream = new MediaStream([
-      ...screenStream.getVideoTracks(),
-      ...audioStream.getAudioTracks()
-    ]);
-
-    // Create MediaRecorder
-    const options = { mimeType: 'video/webm; codecs=vp9' };
-    const recorder = new MediaRecorder(combinedStream, options);
-
-    let chunks = [];
-
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-
-      setRecordings((prev) => [
-        ...prev,
-        { id: Date.now(), url, createdAt: new Date().toISOString() },
+      // Merge screen video + mic audio
+      const combinedStream = new MediaStream([
+        ...screenStream.getVideoTracks(),
+        ...audioStream.getAudioTracks()
       ]);
 
-      // Optional: Auto download
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `recording-${Date.now()}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-    };
+      // Create MediaRecorder
+      const options = { mimeType: 'video/webm; codecs=vp9' };
+      const recorder = new MediaRecorder(combinedStream, options);
 
-    recorder.start();
-    setMediaRecorder(recorder);
-    setIsRecording(true);
+      let chunks = [];
 
-    // Stop sharing when user ends screen share manually
-    screenStream.getVideoTracks()[0].onended = () => {
-      stopRecording();
-    };
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
 
-  } catch (error) {
-    console.error('Error starting full-screen recording:', error);
-    alert('Screen recording failed. Grant permission and try again.');
-  }
-};
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+
+        setRecordings((prev) => [
+          ...prev,
+          { id: Date.now(), url, createdAt: new Date().toISOString() },
+        ]);
+
+        // Optional: Auto download
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `recording-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+
+      // Stop sharing when user ends screen share manually
+      screenStream.getVideoTracks()[0].onended = () => {
+        stopRecording();
+      };
+
+    } catch (error) {
+      console.error('Error starting full-screen recording:', error);
+      alert('Screen recording failed. Grant permission and try again.');
+    }
+  };
 
 
   const stopRecording = () => {
@@ -620,7 +639,7 @@ function Dashboard() {
                 key={user._id}
                 className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer ${selectedUser === user._id
                   ? "bg-green-600"
-                  : "hover:bg-gradient-to-r from-blue-500 to-cyan-500 " 
+                  : "hover:bg-gradient-to-r from-blue-500 to-cyan-500 "
                   }`}
                 onClick={() => handelSelectedUser(user._id)}
               >
@@ -670,21 +689,77 @@ function Dashboard() {
                 </div>
               </div>
             ) : (
-              <video
-                ref={reciverVideo}
-                autoPlay
-                className="absolute top-0 left-0 w-full h-full object-contain rounded-lg"
-              />
+              <>
+                {/* Receiver video: always full size, never minimized */}
+                {/* <div className="flex-grow relative"> */}
+                <video
+                  ref={reciverVideo}
+                  autoPlay
+                  playsInline
+                  className="absolute top-0 left-0 w-full h-full object-contain rounded-lg"
+                  muted={false}
+                />
+                {/* </div> */}
+              </>
+
             )}
 
-            <div className="absolute bottom-[75px] md:bottom-0 right-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
-              <video
+            <div className="absolute bottom-[75px] md:bottom-0  right-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
+              {/* <video
                 ref={myVideo}
                 autoPlay
                 playsInline
-                className="w-32 h-40 md:w-56 md:h-52 object-cover rounded-lg"
-              />
-
+                // className="w-42 h-40 md:w-56 md:h-52 object-cover rounded-lg"
+              /> */}
+              <>
+                {/* Caller self video: floating preview with minimize/restore toggle */}
+                {!isSelfCameraMinimized ? (
+                  <div className="flex bottom-4 right-4 w-60 h-50 rounded-lg overflow-hidden border-2 border-gray-700  shadow-lg ">
+                    <video
+                      ref={myVideo}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      className="absolute top-3 right-3 bg-black bg-opacity-50 hover:bg-opacity-80 rounded-full p-1 text-white cursor-pointer"
+                      onClick={() => setIsSelfCameraMinimized(true)}
+                      title="Minimize Self Camera"
+                      style={{ width: 24, height: 24 }}
+                    >
+                      <FaMinus size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  // Minimized self camera preview fixed bottom-left
+                  <div
+                    className="flex bottom-20 left-4 w-30 h-20 rounded-lg overflow-hidden border-2 border-gray-700 shadow-lg cursor-pointer "
+                    title="Restore Self Camera"
+                    onClick={() => setIsSelfCameraMinimized(false)}
+                  >
+                    <video
+                      ref={myVideo}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      className="absolute top-3 right-3 bg-black bg-opacity-50 hover:bg-opacity-80 rounded-full p-1 text-white cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsSelfCameraMinimized(false);
+                      }}
+                      title="Restore Self Camera"
+                      style={{ width: 24, height: 24 }}
+                    >
+                      <FaWindowRestore size={14} />
+                    </button>
+                  </div>
+                )}</>
               <div className="flex gap-2 mt-2">
                 {!isRecording ? (
                   <button
@@ -773,7 +848,7 @@ function Dashboard() {
             )}
           </div>
 
-          { !isChatMinimized ? (
+          {!isChatMinimized ? (
             <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen transition-all duration-300">
               <div className="p-4 border-b border-gray-700 flex items-center gap-3 sticky top-0 bg-gray-900 z-20">
                 <img
@@ -878,7 +953,7 @@ function Dashboard() {
             </div>
             <div className="gap-8 text-center px-5">
               <h1 className="text-5xl font-extrabold p-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-transparent bg-clip-text">
-               👋 Hey {user?.fullname || "Guest"}! 
+                👋 Hey {user?.fullname || "Guest"}!
               </h1>
               <p className="text-2xl text-gray-300 mt-2">
                 Ready to <strong>connect with friends instantly?</strong> Just{" "}
@@ -944,7 +1019,7 @@ function Dashboard() {
               <img
                 src={rejectorData.profilepic || "/default-avatar.png"}
                 alt="Caller"
-                className="w-20 h-20 rounded-full border-4 border-green-500"
+                className="w-20 h-20 rounded-full border-4 border-green-500 hover:bg-green-800"
               />
               <h3 className="text-lg font-bold mt-3">{rejectorData.name}</h3>
               <div className="flex gap-4 mt-5">
@@ -953,7 +1028,7 @@ function Dashboard() {
                   onClick={() => {
                     startCall();
                   }}
-                  className="bg-green-500 text-white px-4 py-1 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  className="bg-green-500 hover:bg-green-800 text-white px-4 py-1 rounded-lg w-28 flex gap-2 justify-center items-center"
                 >
                   Call Again <FaPhoneAlt />
                 </button>
@@ -964,7 +1039,7 @@ function Dashboard() {
                     setCallRejectedPopUp(false);
                     setShowUserDetailModal(false);
                   }}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  className="bg-red-500 hover:bg-red-800 text-white px-4 py-2 rounded-lg w-28 flex gap-2 justify-center items-center"
                 >
                   Back <FaPhoneSlash />
                 </button>
@@ -990,14 +1065,14 @@ function Dashboard() {
                 <button
                   type="button"
                   onClick={handelacceptCall}
-                  className="bg-green-500 text-white px-4 py-1 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  className="bg-green-500 hover:bg-green-800 text-white px-4 py-1 rounded-lg w-28 flex gap-2 justify-center items-center"
                 >
                   Accept <FaPhoneAlt />
                 </button>
                 <button
                   type="button"
                   onClick={handelrejectCall}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  className="bg-red-500 hover:bg-red-800 text-white px-4 py-2 rounded-lg w-28 flex gap-2 justify-center items-center"
                 >
                   Reject <FaPhoneSlash />
                 </button>
