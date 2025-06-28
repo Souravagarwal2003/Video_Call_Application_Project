@@ -57,6 +57,7 @@ function Dashboard() {
   const [chatInput, setChatInput] = useState("");
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [isSelfCameraMinimized, setIsSelfCameraMinimized] = useState(false);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const ringtone = useRef(null);
 
   // Sound for ringtone
@@ -148,6 +149,10 @@ function Dashboard() {
       if (!currentCallUserId) return;
       if (message.from === currentCallUserId || message.to === currentCallUserId) {
         setChatMessages((prev) => [...prev, message]);
+
+        if (isChatMinimized) {
+          setHasUnreadMessages(true);
+        }
       }
     });
 
@@ -704,7 +709,7 @@ function Dashboard() {
 
             )}
 
-            <div className="absolute bottom-[75px] md:bottom-0  right-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
+            <div className="fixed bottom-[75px] md:bottom-0  right-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
               {/* <video
                 ref={myVideo}
                 autoPlay
@@ -927,13 +932,19 @@ function Dashboard() {
             </div>
           ) : (
             // Minimized chat panel bar
-            <div
-              className="fixed bottom-4 right-4 z-50 bg-gray-900 text-white rounded-lg shadow-lg cursor-pointer p-2 flex items-center gap-2"
-              onClick={() => setIsChatMinimized(false)}
+           <div
+              className=" bottom-4 right-4 z-50 bg-gray-900 text-white rounded-lg shadow-lg cursor-pointer p-2 flex items-center gap-2 "
+              onClick={() => {
+                setIsChatMinimized(false);
+                setHasUnreadMessages(false);
+              }}
               title="Open Chat"
               style={{ width: '60px', height: '40px' }}
             >
               <FaCommentDots size={24} />
+              {hasUnreadMessages && (
+                <span className="  top-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-red-600 animate-pulse" />
+              )}
             </div>
           )}
         </div>
