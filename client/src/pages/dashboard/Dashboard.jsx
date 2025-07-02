@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import socketInstance from '../socket/SocketContext';
-import { FaTimes, FaPhoneAlt, FaMicrophone, FaVideo, FaVideoSlash, FaWindowRestore, FaMinus, FaMicrophoneSlash, FaDoorClosed, FaBars, FaShareAlt, FaCommentDots, FaStop } from "react-icons/fa";
+import { FaTimes, FaPhoneAlt, FaMicrophone, FaVideo, 
+         FaVideoSlash, FaWindowRestore, FaMinus, 
+         FaMicrophoneSlash, FaDoorClosed, FaBars, 
+         FaShareAlt, FaCommentDots, FaStop 
+        } from "react-icons/fa";
 import Lottie from "lottie-react";
 import { Howl } from "howler";
 import wavingAnimation from "../../assets/waving.json";
@@ -100,6 +104,8 @@ function Dashboard() {
     setupStreams();
   }, []);
 
+
+  
   useEffect(() => {
     if (user && socket && !hasJoined.current) {
       socket.emit("join", { id: user._id, name: user.username });
@@ -166,7 +172,7 @@ function Dashboard() {
       socket.off("online-users");
       socket.off("chat-message");
     };
-  }, [user, socket, currentCallUserId, me, caller, callAccepted, reciveCall, selectedUser]);
+  }, [user, socket, currentCallUserId, isChatMinimized, me, caller, callAccepted, reciveCall, selectedUser]);
 
   // Function to start call (unchanged)
   const startCall = async () => {
@@ -303,7 +309,7 @@ function Dashboard() {
   const handelendCall = () => {
     // Notify the other user that the call is ended
     socket.emit("call-ended", { to: currentCallUserId, from: me });
-
+    
     // Perform local cleanup
     endCallCleanup();
   };
@@ -709,7 +715,7 @@ function Dashboard() {
 
             )}
 
-            <div className="fixed bottom-[75px] md:bottom-0  right-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
+            <div className="fixed bottom-[75px] md:bottom-0  left-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
               {/* <video
                 ref={myVideo}
                 autoPlay
@@ -923,7 +929,7 @@ function Dashboard() {
                 />
                 <button
                   type="submit"
-                  className="ml-2 bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="ml-2 bg-blue-600 hover:bg-blue-800 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={!chatInput.trim() || !chatPartnerId}
                 >
                   Send
@@ -932,7 +938,7 @@ function Dashboard() {
             </div>
           ) : (
             // Minimized chat panel bar
-           <div
+            <div
               className=" bottom-4 right-4 z-50 bg-gray-900 text-white rounded-lg shadow-lg cursor-pointer p-2 flex items-center gap-2 "
               onClick={() => {
                 setIsChatMinimized(false);
