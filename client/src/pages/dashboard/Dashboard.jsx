@@ -860,7 +860,7 @@ function Dashboard() {
           </div>
 
           {!isChatMinimized ? (
-            <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen transition-all duration-300">
+            <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen transition-all duration-300 z-1">
               <div className="p-4 border-b border-gray-700 flex items-center gap-3 sticky top-0 bg-gray-900 z-20">
                 <img
                   src={chatPartnerUser?.profilepic || "/default-avatar.png"}
