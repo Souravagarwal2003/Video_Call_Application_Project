@@ -24,7 +24,6 @@ const allowedOrigins = [process.env.CLIENT_URL];
 console.log(allowedOrigins);;
 
 // 🔧 Middleware to handle CORS
-const allowedOrigins = [process.env.CLIENT_URL];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
