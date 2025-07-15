@@ -24,17 +24,18 @@ const allowedOrigins = [process.env.CLIENT_URL];
 console.log(allowedOrigins);;
 
 // 🔧 Middleware to handle CORS
-app.use(cors({
+app.options("*", cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true); // ✅ Allow the request if it's from an allowed origin
+    if (!origin || allowedOrigins.includes(origin) || origin === "null") {
+      callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS')); // ❌ Block requests from unknown origins
+      callback(new Error("Not allowed by CORS"));
     }
   },
-  credentials: true, // ✅ Allow sending cookies with requests
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // ✅ Allow these HTTP methods
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
+
 
 // 🛠 Middleware for handling JSON requests and cookies
 app.use(express.json()); // Enables parsing of JSON request bodies
