@@ -117,7 +117,7 @@ io.on("connection", (socket) => {
     // 📞 Emit an event to the receiver's socket (callee)
     io.to(callee.socketId).emit("callToUser", {
       signal: data.signalData, // WebRTC signal data
-      from: data.from, // Caller ID
+      from: data.from, // Caller IDz
       name: data.name, // Caller name
       email: data.email, // Caller email
       profilepic: data.profilepic, // Caller profile picture
