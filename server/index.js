@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3100;
 
 const server = createServer(app);
 
-const allowedOrigin = process.env.CLIENT_URL;
+const allowedOrigins = [process.env.CLIENT_URL];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
