@@ -55,7 +55,7 @@ const AuthForm = ({ type }) => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-300 to-blue-600 text-white">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-900 text-white">
             
             <div className="bg-white text-gray-500 p-8 rounded-lg shadow-white shadow-2xl w-full max-w-md m-2">
                 
