@@ -24,17 +24,26 @@ const allowedOrigins = [process.env.CLIENT_URL];
 console.log(allowedOrigins);;
 
 // 🔧 Middleware to handle CORS
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true); // ✅ Allow the request if it's from an allowed origin
-    } else {
-      callback(new Error('Not allowed by CORS')); // ❌ Block requests from unknown origins
-    }
-  },
-  credentials: true, // ✅ Allow sending cookies with requests
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // ✅ Allow these HTTP methods
-}));
+const allowedOrigins = [process.env.CLIENT_URL];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200); // ✅ Preflight handled
+  }
+
+  next();
+});
+
 
 // 🛠 Middleware for handling JSON requests and cookies
 app.use(express.json()); // Enables parsing of JSON request bodies
