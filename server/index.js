@@ -24,7 +24,7 @@ const allowedOrigins = [process.env.CLIENT_URL];
 console.log(allowedOrigins);;
 
 // 🔧 Middleware to handle CORS
-app.options("*", cors({
+app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin) || origin === "null") {
       callback(null, true);
@@ -35,6 +35,7 @@ app.options("*", cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
+
 
 
 // 🛠 Middleware for handling JSON requests and cookies
