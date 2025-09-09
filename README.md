@@ -2,7 +2,7 @@
 
 ---
 
-# 📞 SecureCall – Video Calling Application
+# 📞 SecureCall – Video Confrencing Application
 
 SecureCall is a full-featured **video calling web application** built using the **MERN stack** (MongoDB, Express.js, React.js, Node.js) and **WebRTC**. It enables users to connect securely via video calls, share their screen, chat in real time, and even record and replay sessions.
 
