@@ -6,12 +6,6 @@ import {
   FaMicrophoneSlash, FaDoorClosed, FaBars,
   FaShareAlt, FaCommentDots, FaStop
 } from "react-icons/fa";
-import {
-  FaTimes, FaPhoneAlt, FaMicrophone, FaVideo,
-  FaVideoSlash, FaWindowRestore, FaMinus,
-  FaMicrophoneSlash, FaDoorClosed, FaBars,
-  FaShareAlt, FaCommentDots, FaStop
-} from "react-icons/fa";
 import Lottie from "lottie-react";
 import { Howl } from "howler";
 import wavingAnimation from "../../assets/waving.json";
@@ -32,7 +26,6 @@ function Dashboard() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userOnline, setUserOnline] = useState([]);
   const [stream, setStream] = useState(null);
-  const [remoteStream, setRemoteStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [me, setMe] = useState("");
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
@@ -698,12 +691,10 @@ function Dashboard() {
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.push(e.data);
-        if (e.data.size > 0) chunks.push(e.data);
       };
 
 
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
 
@@ -737,8 +728,6 @@ function Dashboard() {
 
 
     } catch (error) {
-      console.error('Error starting full-screen recording:', error);
-      alert('Screen recording failed. Grant permission and try again.');
       console.error('Error starting full-screen recording:', error);
       alert('Screen recording failed. Grant permission and try again.');
     }
@@ -801,7 +790,6 @@ function Dashboard() {
       {!callAccepted && !reciveCall && isSidebarOpen && (
         <div
           className="fixed inset-0 z-10 md:hidden bg-black/40 backdrop-blur-sm"
-          className="fixed inset-0 z-10 md:hidden bg-black/40 backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         ></div>
       )}
@@ -812,21 +800,14 @@ function Dashboard() {
           className={`bg-gray-900/40 backdrop-blur-xl border-r border-gray-700/30 text-white w-72 h-full p-6 space-y-4 fixed z-20 transition-all duration-300 ${
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           } md:translate-x-0`}
-          className={`bg-gray-900/40 backdrop-blur-xl border-r border-gray-700/30 text-white w-72 h-full p-6 space-y-4 fixed z-20 transition-all duration-300 ${
-            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0`}
         >
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Users</h1>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Users</h1>
             <button
               type="button"
               className="md:hidden text-white hover:text-gray-400 transition-colors"
-              className="md:hidden text-white hover:text-gray-400 transition-colors"
               onClick={() => setIsSidebarOpen(false)}
             >
-              <FaTimes className="w-6 h-6" />
               <FaTimes className="w-6 h-6" />
             </button>
           </div>
@@ -1039,7 +1020,6 @@ function Dashboard() {
                   ))}
                 </div>
               )} */}
-              )} */}
             </div>
 
 
@@ -1206,55 +1186,14 @@ function Dashboard() {
               )}
             </div>
           )}
-              <form
-                onSubmit={sendMessage}
-                className="flex p-3 border-t border-gray-700 bg-gray-800 rounded-b-lg"
-              >
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 rounded-lg px-3 py-2 focus:outline-none text-white"
-                  disabled={!chatPartnerId}
-                />
-                <button
-                  type="submit"
-                  className="ml-2 bg-blue-600 hover:bg-blue-800 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!chatInput.trim() || !chatPartnerId}
-                >
-                  Send
-                </button>
-              </form>
-            </div>
-          ) : (
-            // Minimized chat panel bar
-            <div
-              className=" bottom-4 right-4 z-50 bg-gray-900 text-white rounded-lg shadow-lg cursor-pointer p-2 flex items-center gap-2 "
-              onClick={() => {
-                setIsChatMinimized(false);
-                setHasUnreadMessages(false);
-              }}
-              title="Open Chat"
-              style={{ width: '60px', height: '40px' }}
-            >
-              <FaCommentDots size={24} />
-              {hasUnreadMessages && (
-                <span className="  top-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-red-600 animate-pulse" />
-              )}
-            </div>
-          )}
         </div>
       ) : (
-        <div className="flex-1 p-8 md:ml-72 text-white">
         <div className="flex-1 p-8 md:ml-72 text-white">
           <button
             type="button"
             className="flex md:hidden items-center justify-center w-10 h-10 mb-6 text-white hover:text-gray-300 transition-colors"
-            className="flex md:hidden items-center justify-center w-10 h-10 mb-6 text-white hover:text-gray-300 transition-colors"
             onClick={() => setIsSidebarOpen(true)}
           >
-            <FaBars className="w-6 h-6" />
             <FaBars className="w-6 h-6" />
           </button>
 
@@ -1273,8 +1212,6 @@ function Dashboard() {
               <h1 className="text-5xl font-extrabold mb-6 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 text-transparent bg-clip-text">
                 Welcome back, {user?.fullname || "Guest"}! 👋
               </h1>
-              <p className="text-2xl text-gray-300 leading-relaxed">
-                Ready to connect with friends? Start a <span className="text-blue-400 font-semibold">video call</span> or <span className="text-purple-400 font-semibold">chat</span> instantly!
               <p className="text-2xl text-gray-300 leading-relaxed">
                 Ready to connect with friends? Start a <span className="text-blue-400 font-semibold">video call</span> or <span className="text-purple-400 font-semibold">chat</span> instantly!
               </p>
@@ -1327,19 +1264,7 @@ function Dashboard() {
       {showUserDetailModal && modalUser && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
-              <div className="relative mb-6">
-                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 opacity-75 blur"></div>
-                <img
-                  src={modalUser.profilepic || "/default-avatar.png"}
-                  alt="User"
-                  className="relative w-24 h-24 rounded-full border-2 border-white shadow-xl"
-                />
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-2">{modalUser.username}</h3>
-              <p className="text-gray-400 mb-6">{modalUser.email}</p>
               <div className="relative mb-6">
                 <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 opacity-75 blur"></div>
                 <img
@@ -1360,16 +1285,12 @@ function Dashboard() {
                     setShowUserDetailModal(false);
                   }}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  <FaPhoneAlt className="w-4 h-4" />
-                  <span>Start Call</span>
                   <FaPhoneAlt className="w-4 h-4" />
                   <span>Start Call</span>
                 </button>
                 <button
                   onClick={() => setShowUserDetailModal(false)}
-                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                   className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                 >
                   Cancel
@@ -1382,8 +1303,6 @@ function Dashboard() {
 
 
       {callRejectedPopUp && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
@@ -1404,11 +1323,7 @@ function Dashboard() {
                   type="button"
                   onClick={() => startCall()}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                  onClick={() => startCall()}
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  <FaPhoneAlt className="w-4 h-4" />
-                  <span>Try Again</span>
                   <FaPhoneAlt className="w-4 h-4" />
                   <span>Try Again</span>
                 </button>
@@ -1420,9 +1335,7 @@ function Dashboard() {
                     setShowUserDetailModal(false);
                   }}
                   className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
-                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                 >
-                  Close
                   Close
                 </button>
               </div>
@@ -1433,8 +1346,6 @@ function Dashboard() {
 
 
       {reciveCall && !callAccepted && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
@@ -1456,10 +1367,7 @@ function Dashboard() {
                   type="button"
                   onClick={handelacceptCall}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  <FaPhoneAlt className="w-4 h-4" />
-                  <span>Accept</span>
                   <FaPhoneAlt className="w-4 h-4" />
                   <span>Accept</span>
                 </button>
@@ -1467,10 +1375,7 @@ function Dashboard() {
                   type="button"
                   onClick={handelrejectCall}
                   className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  <FaPhoneSlash className="w-4 h-4" />
-                  <span>Decline</span>
                   <FaPhoneSlash className="w-4 h-4" />
                   <span>Decline</span>
                 </button>
