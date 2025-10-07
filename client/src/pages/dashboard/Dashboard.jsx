@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import socketInstance from '../socket/SocketContext';
-import { FaTimes, FaPhoneAlt, FaMicrophone, FaVideo, FaVideoSlash, FaMicrophoneSlash, FaDoorClosed, FaBars, FaShareAlt, FaStop } from "react-icons/fa";
+import {
+  FaTimes, FaPhoneAlt, FaMicrophone, FaVideo,
+  FaVideoSlash, FaWindowRestore, FaMinus,
+  FaMicrophoneSlash, FaDoorClosed, FaBars,
+  FaShareAlt, FaCommentDots, FaStop
+} from "react-icons/fa";
 import Lottie from "lottie-react";
 import { Howl } from "howler";
 import wavingAnimation from "../../assets/waving.json";
@@ -20,6 +25,7 @@ function Dashboard() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userOnline, setUserOnline] = useState([]);
   const [stream, setStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
   const [me, setMe] = useState("");
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [modalUser, setModalUser] = useState(null);
@@ -54,6 +60,9 @@ function Dashboard() {
   // Chat state
   const [chatMessages, setChatMessages] = useState([]); // List of messages in current chat (with selected user or caller)
   const [chatInput, setChatInput] = useState("");
+  const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [isSelfCameraMinimized, setIsSelfCameraMinimized] = useState(false);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const ringtone = useRef(null);
 
   // Sound for ringtone
@@ -75,11 +84,28 @@ function Dashboard() {
 
   useEffect(() => {
     return () => {
-      recordings.forEach(({ url }) => {
-        URL.revokeObjectURL(url);
-      });
+      recordings.forEach(({ url }) => URL.revokeObjectURL(url));
     };
   }, [recordings]);
+
+  useEffect(() => {
+    async function setupStreams() {
+      try {
+        const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setStream(currentStream);
+        if (myVideo.current) myVideo.current.srcObject = currentStream;
+
+        // For demo: assign remoteStream same as stream, replace with remote peer stream in real app
+        setRemoteStream(currentStream);
+        if (reciverVideo.current) reciverVideo.current.srcObject = currentStream;
+      } catch (error) {
+        console.error("Error accessing media devices:", error);
+      }
+    }
+    setupStreams();
+  }, []);
+
+
 
   useEffect(() => {
     if (user && socket && !hasJoined.current) {
@@ -130,6 +156,10 @@ function Dashboard() {
       if (!currentCallUserId) return;
       if (message.from === currentCallUserId || message.to === currentCallUserId) {
         setChatMessages((prev) => [...prev, message]);
+
+        if (isChatMinimized) {
+          setHasUnreadMessages(true);
+        }
       }
     });
 
@@ -143,7 +173,7 @@ function Dashboard() {
       socket.off("online-users");
       socket.off("chat-message");
     };
-  }, [user, socket, currentCallUserId, me, caller, callAccepted, reciveCall, selectedUser]);
+  }, [user, socket, currentCallUserId, isChatMinimized, me, caller, callAccepted, reciveCall, selectedUser]);
 
   // Function to start call (unchanged)
   const startCall = async () => {
@@ -480,42 +510,67 @@ function Dashboard() {
     setChatInput("");
   };
 
-  const startRecording = () => {
-    if (!stream) {
-      alert("Start or accept a call first to record video.");
-      return;
-    }
-
-    let chunks = []; // local chunks collector
-
+  const startRecording = async () => {
     try {
-      const options = { mimeType: "video/webm" };
-      const recorder = new MediaRecorder(stream, options);
+      // Request screen stream
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: 'screen' },
+        audio: true, // some browsers allow system audio here
+      });
+
+      // Request microphone audio (optional fallback)
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Merge screen video + mic audio
+      const combinedStream = new MediaStream([
+        ...screenStream.getVideoTracks(),
+        ...audioStream.getAudioTracks()
+      ]);
+
+      // Create MediaRecorder
+      const options = { mimeType: 'video/webm; codecs=vp9' };
+      const recorder = new MediaRecorder(combinedStream, options);
+
+      let chunks = [];
 
       recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          chunks.push(e.data);
-        }
+        if (e.data.size > 0) chunks.push(e.data);
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: "video/webm" });
+        const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
 
         setRecordings((prev) => [
           ...prev,
           { id: Date.now(), url, createdAt: new Date().toISOString() },
         ]);
+
+        // Optional: Auto download
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `recording-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
       };
 
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
+
+      // Stop sharing when user ends screen share manually
+      screenStream.getVideoTracks()[0].onended = () => {
+        stopRecording();
+      };
+
     } catch (error) {
-      console.error("Error starting recording:", error);
-      alert("MediaRecorder not supported or error occurred.");
+      console.error('Error starting full-screen recording:', error);
+      alert('Screen recording failed. Grant permission and try again.');
     }
   };
+
 
   const stopRecording = () => {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -558,75 +613,97 @@ function Dashboard() {
     return null;
   })();
   return (
-    <div className="flex min-h-screen bg-white-100">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black relative overflow-hidden">
+      {/* Background gradient overlay */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(120,119,198,0.15),rgba(255,255,255,0.05))]"></div>
+      
       {!callAccepted && !reciveCall && isSidebarOpen && (
         <div
-          className="fixed inset-0 z-10 md:hidden bg-black bg-opacity-50"
+          className="fixed inset-0 z-10 md:hidden bg-black/40 backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         ></div>
       )}
 
       {!callAccepted && !reciveCall && (
         <aside
-          className={`bg-gradient-to-br from-blue-800 to-cyan-500 text-white w-64 h-full p-4 space-y-4 fixed z-20 transition-transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-            } md:translate-x-0`}
+          className={`bg-gray-900/40 backdrop-blur-xl border-r border-gray-700/30 text-white w-72 h-full p-6 space-y-4 fixed z-20 transition-all duration-300 ${
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } md:translate-x-0`}
         >
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Users</h1>
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Users</h1>
             <button
               type="button"
-              className="md:hidden text-white"
+              className="md:hidden text-white hover:text-gray-400 transition-colors"
               onClick={() => setIsSidebarOpen(false)}
             >
-              <FaTimes />
+              <FaTimes className="w-6 h-6" />
             </button>
           </div>
 
-          <input
-            type="text"
-            placeholder="Search user..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 rounded-md bg-gray-800 text-white border border-gray-700 mb-2"
-          />
+          <div className="relative mb-6">
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-3 pl-10 rounded-xl bg-gray-800/50 text-white border border-gray-700/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent placeholder-gray-400 transition-all"
+            />
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
 
-          <ul className="space-y-4 overflow-y-auto">
-            {filteredUsers.map((user) => (
-              <li
-                key={user._id}
-                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer ${selectedUser === user._id
-                  ? "bg-green-600"
-                  : "hover:bg-gradient-to-r from-blue-500 to-cyan-500 " 
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 pr-2">
+            <ul className="space-y-2">
+              {filteredUsers.map((user) => (
+                <li
+                  key={user._id}
+                  onClick={() => handelSelectedUser(user._id)}
+                  className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                    selectedUser === user._id
+                      ? "bg-gradient-to-r from-purple-600/80 to-blue-600/80 shadow-lg"
+                      : "hover:bg-gray-800/50 hover:shadow-md"
                   }`}
-                onClick={() => handelSelectedUser(user._id)}
-              >
-                <div className="relative">
-                  <img
-                    src={user.profilepic || "/default-avatar.png"}
-                    alt={`${user.username}'s profile`}
-                    className="w-10 h-10 rounded-full border border-white"
-                  />
-                  {isOnlineUser(user._id) && (
-                    <span className="absolute top-0 right-0 w-3 h-3 bg-green-500 border-2 border-gray-800 rounded-full shadow-lg animate-bounce"></span>
-                  )}
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm">{user.username}</span>
-                  <span className="text-xs text-purple-200 truncate w-32">
-                    {user.fullname || user.email}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
+                >
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={user.profilepic || "/default-avatar.png"}
+                      alt={`${user.username}'s profile`}
+                      className={`w-12 h-12 rounded-full border-2 transition-transform duration-200 ${
+                        selectedUser === user._id ? "border-white" : "border-gray-600 group-hover:border-gray-400"
+                      }`}
+                    />
+                    {isOnlineUser(user._id) && (
+                      <span className="absolute top-0 right-0 w-4 h-4 bg-green-500 border-2 border-gray-900 rounded-full shadow-lg">
+                        <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75"></span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className={`font-semibold truncate ${selectedUser === user._id ? "text-white" : "text-gray-200"}`}>
+                      {user.username}
+                    </span>
+                    <span className={`text-sm truncate ${selectedUser === user._id ? "text-blue-200" : "text-gray-400"}`}>
+                      {user.fullname || user.email}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-          {user && <div
-            onClick={handleLogout}
-            className="fixed bottom-4 left-4 right-4 flex items-center gap-2 bg-red-400  hover:bg-red-700 px-4 py-1 cursor-pointer rounded-lg"
-          >
-            <FaDoorClosed />
-            Logout
-          </div>}
+          {user && (
+            <button
+              onClick={handleLogout}
+              className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-red-500/80 to-red-600/80 hover:from-red-600 hover:to-red-700 text-white font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              <FaDoorClosed className="w-5 h-5" />
+              <span>Logout</span>
+            </button>
+          )}
         </aside>
       )}
       {(selectedUser || reciveCall || callAccepted) ? (
@@ -646,21 +723,77 @@ function Dashboard() {
                 </div>
               </div>
             ) : (
-              <video
-                ref={reciverVideo}
-                autoPlay
-                className="absolute top-0 left-0 w-full h-full object-contain rounded-lg"
-              />
+              <>
+                {/* Receiver video: always full size, never minimized */}
+                {/* <div className="flex-grow relative"> */}
+                <video
+                  ref={reciverVideo}
+                  autoPlay
+                  playsInline
+                  className="absolute top-0 left-0 w-full h-full object-contain rounded-lg"
+                  muted={false}
+                />
+                {/* </div> */}
+              </>
+
             )}
 
-            <div className="absolute bottom-[75px] md:bottom-0 right-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
-              <video
+            <div className="fixed bottom-[75px] md:bottom-0  left-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
+              {/* <video
                 ref={myVideo}
                 autoPlay
                 playsInline
-                className="w-32 h-40 md:w-56 md:h-52 object-cover rounded-lg"
-              />
-
+                // className="w-42 h-40 md:w-56 md:h-52 object-cover rounded-lg"
+              /> */}
+              <>
+                {/* Caller self video: floating preview with minimize/restore toggle */}
+                {!isSelfCameraMinimized ? (
+                  <div className="flex bottom-4 right-4 w-60 h-50 rounded-lg overflow-hidden border-2 border-gray-700  shadow-lg ">
+                    <video
+                      ref={myVideo}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      className="absolute top-3 right-3 bg-black bg-opacity-50 hover:bg-opacity-80 rounded-full p-1 text-white cursor-pointer"
+                      onClick={() => setIsSelfCameraMinimized(true)}
+                      title="Minimize Self Camera"
+                      style={{ width: 24, height: 24 }}
+                    >
+                      <FaMinus size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  // Minimized self camera preview fixed bottom-left
+                  <div
+                    className="flex bottom-20 left-4 w-30 h-20 rounded-lg overflow-hidden border-2 border-gray-700 shadow-lg cursor-pointer "
+                    title="Restore Self Camera"
+                    onClick={() => setIsSelfCameraMinimized(false)}
+                  >
+                    <video
+                      ref={myVideo}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      className="absolute top-3 right-3 bg-black bg-opacity-50 hover:bg-opacity-80 rounded-full p-1 text-white cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsSelfCameraMinimized(false);
+                      }}
+                      title="Restore Self Camera"
+                      style={{ width: 24, height: 24 }}
+                    >
+                      <FaWindowRestore size={14} />
+                    </button>
+                  </div>
+                )}</>
               <div className="flex gap-2 mt-2">
                 {!isRecording ? (
                   <button
@@ -681,7 +814,7 @@ function Dashboard() {
                 )}
               </div>
 
-              {recordings.length > 0 && (
+              {/* {recordings.length > 0 && (
                 <div className="mt-3 w-full overflow-auto max-h-[150px]">
                   <h4 className="text-white text-sm mb-2">Recordings:</h4>
                   {recordings.map(({ id, url, createdAt }) => (
@@ -694,7 +827,7 @@ function Dashboard() {
                     />
                   ))}
                 </div>
-              )}
+              )} */}
             </div>
 
             <div className="absolute top-4 left-4 text-white text-lg font-bold flex gap-2 items-center">
@@ -749,139 +882,202 @@ function Dashboard() {
             )}
           </div>
 
-          <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen">
-            <div className="p-4 border-b border-gray-700 flex items-center gap-3 sticky top-0 bg-gray-900 z-20">
-              <img
-                src={chatPartnerUser?.profilepic || "/default-avatar.png"}
-                alt="Chat Partner"
-                className="w-12 h-12 rounded-full border border-white"
-              />
-              <div>
-                <h2 className="font-bold text-lg">
-                  {chatPartnerUser?.username || "Unknown User"}
-                </h2>
-                {isOnlineUser(chatPartnerUser) && (
-                  <span className="text-green-400 text-sm">Online</span>
-                )}
+          {!isChatMinimized ? (
+            <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen transition-all duration-300 z-1">
+              <div className="p-4 border-b border-gray-700 flex items-center gap-3 sticky top-0 bg-gray-900 z-20">
+                <img
+                  src={chatPartnerUser?.profilepic || "/default-avatar.png"}
+                  alt="Chat Partner"
+                  className="w-12 h-12 rounded-full border border-white"
+                />
+                <div className="flex-1">
+                  <h2 className="font-bold text-lg">
+                    {chatPartnerUser?.username || "Unknown User"}
+                  </h2>
+                  {isOnlineUser(chatPartnerUser) && (
+                    <span className="text-green-400 text-sm">Online</span>
+                  )}
+                </div>
+                {/* Minimize chat button */}
+                <button
+                  type="button"
+                  className="text-white hover:text-gray-400 ml-2"
+                  onClick={() => setIsChatMinimized(true)}
+                  title="Minimize Chat"
+                >
+                  <FaTimes size={20} />
+                </button>
               </div>
-            </div>
 
-            <div
-              className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800"
-              id="chat-messages"
-            >
-              {chatMessages.length === 0 && (
-                <p className="text-gray-500 text-center mt-6">Start the conversation!</p>
-              )}
+              <div
+                className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800"
+                id="chat-messages"
+              >
+                {chatMessages.length === 0 && (
+                  <p className="text-gray-500 text-center mt-6">Start the conversation!</p>
+                )}
 
-              {chatMessages.map((msg, index) => {
-                const isMe = msg.from === me;
-                return (
-                  <div
-                    key={index}
-                    className={`flex ${isMe ? "justify-end" : "justify-start"}`}
-                  >
+                {chatMessages.map((msg, index) => {
+                  const isMe = msg.from === me;
+                  return (
                     <div
-                      className={`max-w-xs md:max-w-md px-3 py-2 rounded-lg break-words whitespace-pre-wrap ${isMe ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-200"
-                        }`}
+                      key={index}
+                      className={`flex ${isMe ? "justify-end" : "justify-start"}`}
                     >
-                      <div className="text-sm">{msg.content}</div>
-                      <div className="text-[10px] text-gray-300 text-right mt-1 select-none">
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div
+                        className={`max-w-xs md:max-w-md px-3 py-2 rounded-lg break-words whitespace-pre-wrap ${isMe ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-200"
+                          }`}
+                      >
+                        <div className="text-sm">{msg.content}</div>
+                        <div className="text-[10px] text-gray-300 text-right mt-1 select-none">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <form
-              onSubmit={sendMessage}
-              className="flex p-3 border-t border-gray-700 bg-gray-800 rounded-b-lg"
-            >
-              <input
-                type="text"
-                placeholder="Type a message..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                className="flex-1 rounded-lg px-3 py-2 focus:outline-none text-white"
-                disabled={!chatPartnerId}
-              />
-              <button
-                type="submit"
-                className="ml-2 bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!chatInput.trim() || !chatPartnerId}
+              <form
+                onSubmit={sendMessage}
+                className="flex p-3 border-t border-gray-700 bg-gray-800 rounded-b-lg"
               >
-                Send
-              </button>
-            </form>
-          </div>
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 rounded-lg px-3 py-2 focus:outline-none text-white"
+                  disabled={!chatPartnerId}
+                />
+                <button
+                  type="submit"
+                  className="ml-2 bg-blue-600 hover:bg-blue-800 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!chatInput.trim() || !chatPartnerId}
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+          ) : (
+            // Minimized chat panel bar
+            <div
+              className=" bottom-4 right-4 z-50 bg-gray-900 text-white rounded-lg shadow-lg cursor-pointer p-2 flex items-center gap-2 "
+              onClick={() => {
+                setIsChatMinimized(false);
+                setHasUnreadMessages(false);
+              }}
+              title="Open Chat"
+              style={{ width: '60px', height: '40px' }}
+            >
+              <FaCommentDots size={24} />
+              {hasUnreadMessages && (
+                <span className="  top-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-red-600 animate-pulse" />
+              )}
+            </div>
+          )}
         </div>
       ) : (
-        <div className="flex-1 p-6 md:ml-72 text-white">
+        <div className="flex-1 p-8 md:ml-72 text-white">
           <button
             type="button"
-            className=" flex md:hidden text-2xl text-black mb-4 "
+            className="flex md:hidden items-center justify-center w-10 h-10 mb-6 text-white hover:text-gray-300 transition-colors"
             onClick={() => setIsSidebarOpen(true)}
           >
-            <FaBars />
+            <FaBars className="w-6 h-6" />
           </button>
 
-          <div className="flex flex-col items-center justify-center gap-5 mb-6 bg-gray-800 p-5 rounded-xl shadow-md min-h-[300px]">
-            <div className="w-48 h-48">
+          <div className="relative flex flex-col items-center justify-center gap-8 mb-8 rounded-2xl shadow-2xl overflow-hidden min-h-[400px]">
+            {/* Gradient background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-purple-600/20"></div>
+            {/* Animated pattern overlay */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[length:20px_20px]"></div>
+            
+            <div className="relative z-10 w-48 h-48 mb-4">
               <Lottie animationData={wavingAnimation} loop autoplay />
             </div>
-            <div className="gap-8 text-center px-5">
-              <h1 className="text-5xl font-extrabold p-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-transparent bg-clip-text">
-               👋 Hey {user?.fullname || "Guest"}! 
+            
+            <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
+              <h1 className="text-5xl font-extrabold mb-6 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 text-transparent bg-clip-text">
+                Welcome back, {user?.fullname || "Guest"}! 👋
               </h1>
-              <p className="text-2xl text-gray-300 mt-2">
-                Ready to <strong>connect with friends instantly?</strong> Just{" "}
-                <strong>select a user</strong> and start your video call or chat! 🎥💬✨
+              <p className="text-2xl text-gray-300 leading-relaxed">
+                Ready to connect with friends? Start a <span className="text-blue-400 font-semibold">video call</span> or <span className="text-purple-400 font-semibold">chat</span> instantly!
               </p>
             </div>
           </div>
 
-          <div className="bg-gray-800 p-4 rounded-lg shadow-lg text-sm">
-            <h2 className="text-4xl pb-4 font-semibold mb-2">💡 How to Connect?</h2>
-            <ul className="list-disc pl-6 text-lg space-y-2 text-gray-400">
-              <li>📌 Open the sidebar to see online users.</li>
-              <li>🔍 Use the search bar to find a specific person.</li>
-              <li>🎥 Click on a user to start a video call instantly!</li>
-              <li>💬 Or start chatting instantly via the chat panel after selecting a user!</li>
-              <li>🖥️ Use the screen sharing button during a call to share your screen.</li>
-            </ul>
+          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-2xl p-8 shadow-xl border border-gray-700/30">
+            <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text">
+              Quick Start Guide
+            </h2>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {[
+                {
+                  icon: "�",
+                  title: "Select a Contact",
+                  description: "Browse your contacts in the sidebar or use the search to find someone specific."
+                },
+                {
+                  icon: "🎥",
+                  title: "Start a Call",
+                  description: "Click on a user's profile to initiate a video call with crystal-clear quality."
+                },
+                {
+                  icon: "💬",
+                  title: "Chat Anytime",
+                  description: "Send messages before, during, or after calls to stay connected."
+                },
+                {
+                  icon: "🖥️",
+                  title: "Share Your Screen",
+                  description: "Present your screen during calls for better collaboration."
+                }
+              ].map((feature, index) => (
+                <div key={index} className="flex items-start gap-4 p-4 rounded-xl bg-gray-800/30 border border-gray-700/30 hover:bg-gray-800/50 transition-all duration-300">
+                  <span className="text-3xl">{feature.icon}</span>
+                  <div>
+                    <h3 className="font-semibold text-lg text-gray-100 mb-2">{feature.title}</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">{feature.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {showUserDetailModal && modalUser && (
-        <div className="fixed inset-0 bg-transparent bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
-              <p className='font-black text-xl mb-2'>User Details</p>
-              <img
-                src={modalUser.profilepic || "/default-avatar.png"}
-                alt="User"
-                className="w-20 h-20 rounded-full border-4 border-blue-500"
-              />
-              <h3 className="text-lg font-bold mt-3">{modalUser.username}</h3>
-              <p className="text-sm text-gray-500">{modalUser.email}</p>
+              <div className="relative mb-6">
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 opacity-75 blur"></div>
+                <img
+                  src={modalUser.profilepic || "/default-avatar.png"}
+                  alt="User"
+                  className="relative w-24 h-24 rounded-full border-2 border-white shadow-xl"
+                />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">{modalUser.username}</h3>
+              <p className="text-gray-400 mb-6">{modalUser.email}</p>
 
-              <div className="flex gap-4 mt-5">
+              <div className="flex gap-4 w-full">
                 <button
                   onClick={() => {
                     setSelectedUser(modalUser._id);
                     startCall();
                     setShowUserDetailModal(false);
                   }}
-                  className="bg-green-600  hover:bg-green-800 text-white px-4 py-1 rounded-lg w-28 flex items-center gap-2 justify-center"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  Call <FaPhoneAlt />
+                  <FaPhoneAlt className="w-4 h-4" />
+                  <span>Start Call</span>
                 </button>
                 <button
                   onClick={() => setShowUserDetailModal(false)}
-                  className="bg-gray-400  hover:bg-red-700 text-white px-4 py-1 rounded-lg w-28"
+                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                 >
                   Cancel
                 </button>
@@ -892,25 +1088,28 @@ function Dashboard() {
       )}
 
       {callRejectedPopUp && (
-        <div className="fixed inset-0 bg-transparent bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
-              <p className="font-black text-xl mb-2">Call Rejected From...</p>
-              <img
-                src={rejectorData.profilepic || "/default-avatar.png"}
-                alt="Caller"
-                className="w-20 h-20 rounded-full border-4 border-green-500"
-              />
-              <h3 className="text-lg font-bold mt-3">{rejectorData.name}</h3>
-              <div className="flex gap-4 mt-5">
+              <div className="relative mb-6">
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-red-600 to-orange-600 opacity-75 blur"></div>
+                <img
+                  src={rejectorData.profilepic || "/default-avatar.png"}
+                  alt="Caller"
+                  className="relative w-24 h-24 rounded-full border-2 border-white shadow-xl"
+                />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">{rejectorData.name}</h3>
+              <p className="text-red-400 font-medium mb-6">Call Rejected</p>
+
+              <div className="flex gap-4 w-full">
                 <button
                   type="button"
-                  onClick={() => {
-                    startCall();
-                  }}
-                  className="bg-green-500 text-white px-4 py-1 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  onClick={() => startCall()}
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  Call Again <FaPhoneAlt />
+                  <FaPhoneAlt className="w-4 h-4" />
+                  <span>Try Again</span>
                 </button>
                 <button
                   type="button"
@@ -919,9 +1118,9 @@ function Dashboard() {
                     setCallRejectedPopUp(false);
                     setShowUserDetailModal(false);
                   }}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                 >
-                  Back <FaPhoneSlash />
+                  Close
                 </button>
               </div>
             </div>
@@ -930,31 +1129,37 @@ function Dashboard() {
       )}
 
       {reciveCall && !callAccepted && (
-        <div className="fixed inset-0 bg-transparent bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
-              <p className="font-black text-xl mb-2">Call From...</p>
-              <img
-                src={caller?.profilepic || "/default-avatar.png"}
-                alt="Caller"
-                className="w-20 h-20 rounded-full border-4 border-green-500"
-              />
-              <h3 className="text-lg font-bold mt-3">{callerName}</h3>
-              <p className="text-sm text-gray-500">{caller?.email}</p>
-              <div className="flex gap-4 mt-5">
+              <div className="relative mb-6">
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 opacity-75 blur animate-pulse"></div>
+                <img
+                  src={caller?.profilepic || "/default-avatar.png"}
+                  alt="Caller"
+                  className="relative w-24 h-24 rounded-full border-2 border-white shadow-xl"
+                />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">{callerName}</h3>
+              <p className="text-gray-400 mb-6">{caller?.email}</p>
+              <p className="text-blue-400 font-medium mb-6 animate-pulse">Incoming Call...</p>
+
+              <div className="flex gap-4 w-full">
                 <button
                   type="button"
                   onClick={handelacceptCall}
-                  className="bg-green-500 text-white px-4 py-1 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  Accept <FaPhoneAlt />
+                  <FaPhoneAlt className="w-4 h-4" />
+                  <span>Accept</span>
                 </button>
                 <button
                   type="button"
                   onClick={handelrejectCall}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg w-28 flex gap-2 justify-center items-center"
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
-                  Reject <FaPhoneSlash />
+                  <FaPhoneSlash className="w-4 h-4" />
+                  <span>Decline</span>
                 </button>
               </div>
             </div>

@@ -7,13 +7,23 @@ import IsLogin from './pages/auth/isLogin.jsx';
 function App() {
   return (
     <Router>
-      <Routes>
+      <div className="app-container">
+        <Routes>
           <Route element={<IsLogin />}>
-          <Route path="/" element={<Dashboard />} />
-        </Route>
-        <Route path="/signup" element={<AuthForm type="signup" />} />
-        <Route path="/login" element={<AuthForm type="login" />} />
-      </Routes>
+            <Route path="/" element={<Dashboard />} />
+          </Route>
+          <Route path="/signup" element={
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 to-blue-900">
+              <AuthForm type="signup" />
+            </div>
+          } />
+          <Route path="/login" element={
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 to-blue-900">
+              <AuthForm type="login" />
+            </div>
+          } />
+        </Routes>
+      </div>
     </Router>
   );
 }

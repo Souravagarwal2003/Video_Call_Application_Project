@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+/* Add full page background styles */
+html, body, #root {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+body {
+  background: linear-gradient(to bottom right, rgb(17, 24, 39), rgb(88, 28, 135), rgb(0, 0, 0));
+  background-attachment: fixed;
+}

@@ -43,7 +43,7 @@ app.use(cookieParser()); // Enables reading cookies in HTTP requests
 app.use("/api/auth", authRoute); // Authentication routes (login, signup, logout)
 app.use("/api/user", userRoute); // User-related routes (profile, settings)
 
-app.get('/ok', (req, res) => {
+app.get('/', (req, res) => {
   res.json("Server is running!");
 })
 
@@ -117,7 +117,7 @@ io.on("connection", (socket) => {
     // 📞 Emit an event to the receiver's socket (callee)
     io.to(callee.socketId).emit("callToUser", {
       signal: data.signalData, // WebRTC signal data
-      from: data.from, // Caller ID
+      from: data.from, // Caller IDz
       name: data.name, // Caller name
       email: data.email, // Caller email
       profilepic: data.profilepic, // Caller profile picture
