@@ -12,14 +12,14 @@ export default defineConfig({
     tailwindcss()
   ],
   optimizeDeps: {
-   // include: ['buffer'],
+   include: ['buffer'],
     esbuildOptions: {
       define: {
         global: 'globalThis'  // Correct polyfill for 'global'
       },
       plugins: [
         NodeGlobalsPolyfillPlugin({
-          buffer: true,
+          buffer: false,
           process: true
         }),
         NodeModulesPolyfillPlugin()  // Required for `stream`, `crypto`, etc.
@@ -31,7 +31,7 @@ export default defineConfig({
       stream: 'stream-browserify',
       crypto: 'crypto-browserify',
       events: 'events/',
-    //  buffer: 'buffer'
+      buffer: 'buffer'
     }
   },
   define: {

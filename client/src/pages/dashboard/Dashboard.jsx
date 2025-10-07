@@ -6,6 +6,12 @@ import {
   FaMicrophoneSlash, FaDoorClosed, FaBars,
   FaShareAlt, FaCommentDots, FaStop
 } from "react-icons/fa";
+import {
+  FaTimes, FaPhoneAlt, FaMicrophone, FaVideo,
+  FaVideoSlash, FaWindowRestore, FaMinus,
+  FaMicrophoneSlash, FaDoorClosed, FaBars,
+  FaShareAlt, FaCommentDots, FaStop
+} from "react-icons/fa";
 import Lottie from "lottie-react";
 import { Howl } from "howler";
 import wavingAnimation from "../../assets/waving.json";
@@ -14,6 +20,7 @@ import apiClient from "../../apiClient";
 import { useUser } from '../../context/UserContextApi';
 import { useNavigate } from 'react-router-dom';
 import Peer from 'simple-peer';
+
 
 function Dashboard() {
   const { user, updateUser } = useUser();
@@ -26,6 +33,7 @@ function Dashboard() {
   const [userOnline, setUserOnline] = useState([]);
   const [stream, setStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
   const [me, setMe] = useState("");
   const [showUserDetailModal, setShowUserDetailModal] = useState(false);
   const [modalUser, setModalUser] = useState(null);
@@ -34,6 +42,7 @@ function Dashboard() {
   const connectionRef = useRef(null);
   const hasJoined = useRef(false);
 
+
   const [reciveCall, setReciveCall] = useState(false);
   const [caller, setCaller] = useState(null);
   const [callerName, setCallerName] = useState("");
@@ -41,21 +50,26 @@ function Dashboard() {
   const [callAccepted, setCallAccepted] = useState(false);
   const [callerWating, setCallerWating] = useState(false);
 
+
   const [callRejectedPopUp, setCallRejectedPopUp] = useState(false);
   const [rejectorData, setCallrejectorData] = useState(null);
   const [currentCallUserId, setCurrentCallUserId] = useState(null);
+
 
   const [mediaRecorder, setMediaRecorder] = useState(null);
   //const [recordedChunks, setRecordedChunks] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordings, setRecordings] = useState([]); // holds { id, url, createdAt }
 
+
   // Mic and Video state
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
 
+
   // Screensharing state
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+
 
   // Chat state
   const [chatMessages, setChatMessages] = useState([]); // List of messages in current chat (with selected user or caller)
@@ -63,7 +77,12 @@ function Dashboard() {
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [isSelfCameraMinimized, setIsSelfCameraMinimized] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [isSubtitlesEnabled, setIsSubtitlesEnabled] = useState(false);
+  const [subtitlesText, setSubtitlesText] = useState("");
+  const [remoteSubtitles, setRemoteSubtitles] = useState("");
+  const speechRecognition = useRef(null);
   const ringtone = useRef(null);
+
 
   // Sound for ringtone
   useEffect(() => {
@@ -73,20 +92,91 @@ function Dashboard() {
       volume: 1.0,
     });
 
-    // Cleanup on unmount
-    return () => ringtone.current.unload();
+
+    return () => {
+      ringtone.current.unload();
+      if (speechRecognition.current) {
+        speechRecognition.current.stop();
+      }
+    };
   }, []);
+
 
   const socket = socketInstance.getSocket();
   useEffect(() => {
     setIsSidebarOpen(false);
   }, []);
 
+
+  // Initialize Speech Recognition
+  const initializeSpeechRecognition = () => {
+    if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+      console.error("Speech Recognition not supported");
+      return;
+    }
+
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    speechRecognition.current = new SpeechRecognition();
+    speechRecognition.current.continuous = true;
+    speechRecognition.current.interimResults = true;
+   
+    speechRecognition.current.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map(result => result[0])
+        .map(result => result.transcript)
+        .join('');
+     
+      setSubtitlesText(transcript);
+     
+      // Send subtitles to remote peer
+      if (connectionRef.current && event.results[event.results.length - 1].isFinal) {
+        socket.emit('subtitles', {
+          text: transcript,
+          to: currentCallUserId,
+          from: me
+        });
+      }
+    };
+
+
+    speechRecognition.current.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+    };
+  };
+
+
+  // Toggle subtitles
+  const toggleSubtitles = () => {
+    if (!speechRecognition.current) {
+      initializeSpeechRecognition();
+    }
+
+
+    if (isSubtitlesEnabled) {
+      speechRecognition.current?.stop();
+      setSubtitlesText("");
+      setRemoteSubtitles("");
+    } else {
+      try {
+        speechRecognition.current?.start();
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+      }
+    }
+    setIsSubtitlesEnabled(!isSubtitlesEnabled);
+  };
+
+
   useEffect(() => {
     return () => {
       recordings.forEach(({ url }) => URL.revokeObjectURL(url));
+      if (speechRecognition.current) {
+        speechRecognition.current.stop();
+      }
     };
   }, [recordings]);
+
 
   useEffect(() => {
     async function setupStreams() {
@@ -94,6 +184,7 @@ function Dashboard() {
         const currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         setStream(currentStream);
         if (myVideo.current) myVideo.current.srcObject = currentStream;
+
 
         // For demo: assign remoteStream same as stream, replace with remote peer stream in real app
         setRemoteStream(currentStream);
@@ -107,13 +198,18 @@ function Dashboard() {
 
 
 
+
+
+
   useEffect(() => {
     if (user && socket && !hasJoined.current) {
       socket.emit("join", { id: user._id, name: user.username });
       hasJoined.current = true;
     }
 
+
     socket.on("me", (id) => setMe(id));
+
 
     socket.on("callToUser", (data) => {
       setReciveCall(true);
@@ -126,11 +222,13 @@ function Dashboard() {
       }
     });
 
+
     socket.on("callRejected", (data) => {
       setCallRejectedPopUp(true);
       setCallrejectorData(data);
       ringtone.stop();
     });
+
 
     socket.on("call-ended", (data) => {
       // Check if this call is with current user, just for safety
@@ -139,17 +237,22 @@ function Dashboard() {
       }
     });
 
+
     socket.on("userUnavailable", (data) => {
       alert(data.message || "User is not available.");
     });
+
 
     socket.on("userBusy", (data) => {
       alert(data.message || "User is currently in another call.");
     });
 
+
     socket.on("online-users", (onlineUsers) => {
       setUserOnline(onlineUsers);
     });
+
+
 
 
     socket.on("chat-message", (message) => {
@@ -157,11 +260,20 @@ function Dashboard() {
       if (message.from === currentCallUserId || message.to === currentCallUserId) {
         setChatMessages((prev) => [...prev, message]);
 
+
         if (isChatMinimized) {
           setHasUnreadMessages(true);
         }
       }
     });
+
+
+    socket.on("subtitles", (data) => {
+      if (data.from === currentCallUserId) {
+        setRemoteSubtitles(data.text);
+      }
+    });
+
 
     return () => {
       socket.off("me");
@@ -172,8 +284,10 @@ function Dashboard() {
       socket.off("userBusy");
       socket.off("online-users");
       socket.off("chat-message");
+      socket.off("subtitles");
     };
   }, [user, socket, currentCallUserId, isChatMinimized, me, caller, callAccepted, reciveCall, selectedUser]);
+
 
   // Function to start call (unchanged)
   const startCall = async () => {
@@ -194,11 +308,13 @@ function Dashboard() {
       setCallerWating(true);
       setSelectedUser(modalUser._id);
 
+
       const peer = new Peer({
         initiator: true,
         trickle: false,
         stream: currentStream
       });
+
 
       peer.on("signal", (data) => {
         socket.emit("callToUser", {
@@ -211,6 +327,7 @@ function Dashboard() {
         });
       });
 
+
       peer.on("stream", (remoteStream) => {
         if (reciverVideo.current) {
           reciverVideo.current.srcObject = remoteStream;
@@ -218,6 +335,7 @@ function Dashboard() {
           reciverVideo.current.volume = 1.0;
         }
       });
+
 
       socket.once("callAccepted", (data) => {
         setCallRejectedPopUp(false);
@@ -228,6 +346,7 @@ function Dashboard() {
         peer.signal(data.signal);
       });
 
+
       connectionRef.current = peer;
       setShowUserDetailModal(false);
       setChatMessages([]);
@@ -235,6 +354,7 @@ function Dashboard() {
       console.error("Error accessing media devices:", error);
     }
   };
+
 
   // Accept call handler (unchanged except clear chat messages)
   const handelacceptCall = async () => {
@@ -247,11 +367,13 @@ function Dashboard() {
         audio: { echoCancellation: true, noiseSuppression: true }
       });
 
+
       setStream(currentStream);
       if (myVideo.current) {
         myVideo.current.srcObject = currentStream;
       }
       currentStream.getAudioTracks().forEach(track => (track.enabled = true));
+
 
       setCallAccepted(true);
       setReciveCall(true);
@@ -259,11 +381,13 @@ function Dashboard() {
       setIsSidebarOpen(false);
       setCurrentCallUserId(caller.from);  // Add this to set current call partner explicitly
 
+
       const peer = new Peer({
         initiator: false,
         trickle: false,
         stream: currentStream
       });
+
 
       peer.on("signal", (data) => {
         socket.emit("answeredCall", {
@@ -273,6 +397,7 @@ function Dashboard() {
         });
       });
 
+
       peer.on("stream", (remoteStream) => {
         if (reciverVideo.current) {
           reciverVideo.current.srcObject = remoteStream;
@@ -281,6 +406,7 @@ function Dashboard() {
         }
       });
 
+
       if (callerSignal) peer.signal(callerSignal);
       connectionRef.current = peer;
       setChatMessages([]);
@@ -288,6 +414,7 @@ function Dashboard() {
       console.error("Error accessing media devices:", error);
     }
   };
+
 
   // Reject call handler
   const handelrejectCall = () => {
@@ -299,6 +426,7 @@ function Dashboard() {
     setCallAccepted(false);
     setCurrentCallUserId(null);
 
+
     socket.emit("reject-call", {
       to: caller.from,
       name: user.username,
@@ -306,14 +434,18 @@ function Dashboard() {
     });
   };
 
+
   // End call handler
   const handelendCall = () => {
     // Notify the other user that the call is ended
     socket.emit("call-ended", { to: currentCallUserId, from: me });
 
+
     // Perform local cleanup
     endCallCleanup();
   };
+
+
 
 
   // Cleanup after call ends
@@ -323,6 +455,7 @@ function Dashboard() {
     if (myVideo.current) myVideo.current.srcObject = null;
     connectionRef.current?.destroy();
     ringtone.current?.stop();
+
 
     setCallerWating(false);
     setStream(null);
@@ -335,6 +468,7 @@ function Dashboard() {
     setIsScreenSharing(false);
   };
 
+
   // Mic toggle
   const toggleMic = () => {
     if (stream) {
@@ -345,6 +479,7 @@ function Dashboard() {
       }
     }
   };
+
 
   // Camera toggle
   const toggleCam = () => {
@@ -357,12 +492,14 @@ function Dashboard() {
     }
   };
 
+
   // Screen sharing toggle
   const toggleScreenSharing = async () => {
     if (!callAccepted && !reciveCall) {
       alert("Start or accept a call first to share your screen.");
       return;
     }
+
 
     if (!isScreenSharing) {
       try {
@@ -371,19 +508,23 @@ function Dashboard() {
           audio: true
         });
 
+
         // Replace the video track in the peer connection stream with screen track
         const screenTrack = screenStream.getVideoTracks()[0];
+
 
         // When user stops screen sharing from browser controls
         screenTrack.onended = () => {
           stopScreenSharing();
         };
 
+
         const sender = connectionRef.current?.streams[0]?.getTracks().find(track => track.kind === 'video');
         if (sender) {
-          // We replace the video track sent to the peer 
+          // We replace the video track sent to the peer
           connectionRef.current.replaceTrack(sender, screenTrack, connectionRef.current.streams[0]);
         }
+
 
         // Update the local stream to screen share stream, but keep audio tracks from original stream
         const combinedStream = new MediaStream();
@@ -391,9 +532,11 @@ function Dashboard() {
         stream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
         setStream(combinedStream);
 
+
         if (myVideo.current) {
           myVideo.current.srcObject = combinedStream;
         }
+
 
         setIsScreenSharing(true);
       } catch (error) {
@@ -404,6 +547,7 @@ function Dashboard() {
     }
   };
 
+
   // Stop screen sharing and switch back to camera video
   const stopScreenSharing = async () => {
     if (!stream) return;
@@ -413,17 +557,21 @@ function Dashboard() {
         audio: { echoCancellation: true, noiseSuppression: true }
       });
 
+
       const videoTrack = videoStream.getVideoTracks()[0];
+
 
       const sender = connectionRef.current?.streams[0]?.getTracks().find(track => track.kind === 'video');
       if (sender) {
         connectionRef.current.replaceTrack(sender, videoTrack, connectionRef.current.streams[0]);
       }
 
+
       const combinedStream = new MediaStream();
       videoStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
       stream.getAudioTracks().forEach(track => combinedStream.addTrack(track));
       setStream(combinedStream);
+
 
       if (myVideo.current) {
         myVideo.current.srcObject = combinedStream;
@@ -434,6 +582,7 @@ function Dashboard() {
       console.error("Error stopping screen share:", error);
     }
   };
+
 
   // Fetch all users
   const allusers = async () => {
@@ -450,11 +599,14 @@ function Dashboard() {
     }
   };
 
+
   useEffect(() => {
     allusers();
   }, []);
 
+
   const isOnlineUser = (userId) => userOnline.some((u) => u.userId === userId);
+
 
   const handelSelectedUser = (userId) => {
     if (callAccepted || reciveCall) {
@@ -466,10 +618,12 @@ function Dashboard() {
     setShowUserDetailModal(true);
   };
 
+
   const filteredUsers = users.filter((u) =>
     u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
 
   const handleLogout = async () => {
     if (callAccepted || reciveCall) {
@@ -489,15 +643,18 @@ function Dashboard() {
     }
   };
 
+
   // Send chat message handler
   const sendMessage = (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
 
+
     if (!currentCallUserId) {
       alert("Select a user to chat with!");
       return;
     }
+
 
     const messageData = {
       from: me,
@@ -510,6 +667,7 @@ function Dashboard() {
     setChatInput("");
   };
 
+
   const startRecording = async () => {
     try {
       // Request screen stream
@@ -518,8 +676,10 @@ function Dashboard() {
         audio: true, // some browsers allow system audio here
       });
 
+
       // Request microphone audio (optional fallback)
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
 
       // Merge screen video + mic audio
       const combinedStream = new MediaStream([
@@ -527,24 +687,32 @@ function Dashboard() {
         ...audioStream.getAudioTracks()
       ]);
 
+
       // Create MediaRecorder
       const options = { mimeType: 'video/webm; codecs=vp9' };
       const recorder = new MediaRecorder(combinedStream, options);
 
+
       let chunks = [];
+
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.push(e.data);
+        if (e.data.size > 0) chunks.push(e.data);
       };
+
 
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'video/webm' });
+        const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
+
 
         setRecordings((prev) => [
           ...prev,
           { id: Date.now(), url, createdAt: new Date().toISOString() },
         ]);
+
 
         // Optional: Auto download
         const a = document.createElement('a');
@@ -556,20 +724,27 @@ function Dashboard() {
         window.URL.revokeObjectURL(url);
       };
 
+
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
+
 
       // Stop sharing when user ends screen share manually
       screenStream.getVideoTracks()[0].onended = () => {
         stopRecording();
       };
 
+
     } catch (error) {
+      console.error('Error starting full-screen recording:', error);
+      alert('Screen recording failed. Grant permission and try again.');
       console.error('Error starting full-screen recording:', error);
       alert('Screen recording failed. Grant permission and try again.');
     }
   };
+
+
 
 
   const stopRecording = () => {
@@ -579,7 +754,9 @@ function Dashboard() {
     }
   };
 
+
   const getUserById = (id) => users.find(u => u._id === id);
+
 
   const chatPartnerId = callAccepted || reciveCall ? (caller?.from || selectedUser) : selectedUser;
   // Helper to get chat partner user info
@@ -587,7 +764,9 @@ function Dashboard() {
     // 1. Try to get from users list by currentCallUserId
     const userFromList = currentCallUserId ? getUserById(currentCallUserId) : null;
 
+
     if (userFromList) return userFromList;
+
 
     // 2. If no user found from users array, fallback:
     // If current user is caller (we started call), modalUser is callee info
@@ -605,10 +784,12 @@ function Dashboard() {
       }
     }
 
+
     // 3. If no call active or no info, fallback to selectedUser from users list
     if (selectedUser) {
       return getUserById(selectedUser);
     }
+
 
     return null;
   })();
@@ -616,30 +797,40 @@ function Dashboard() {
     <div className="flex min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black relative overflow-hidden">
       {/* Background gradient overlay */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(120,119,198,0.15),rgba(255,255,255,0.05))]"></div>
-      
+     
       {!callAccepted && !reciveCall && isSidebarOpen && (
         <div
+          className="fixed inset-0 z-10 md:hidden bg-black/40 backdrop-blur-sm"
           className="fixed inset-0 z-10 md:hidden bg-black/40 backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         ></div>
       )}
+
 
       {!callAccepted && !reciveCall && (
         <aside
           className={`bg-gray-900/40 backdrop-blur-xl border-r border-gray-700/30 text-white w-72 h-full p-6 space-y-4 fixed z-20 transition-all duration-300 ${
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           } md:translate-x-0`}
+          className={`bg-gray-900/40 backdrop-blur-xl border-r border-gray-700/30 text-white w-72 h-full p-6 space-y-4 fixed z-20 transition-all duration-300 ${
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } md:translate-x-0`}
         >
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Users</h1>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Users</h1>
             <button
               type="button"
               className="md:hidden text-white hover:text-gray-400 transition-colors"
+              className="md:hidden text-white hover:text-gray-400 transition-colors"
               onClick={() => setIsSidebarOpen(false)}
             >
               <FaTimes className="w-6 h-6" />
+              <FaTimes className="w-6 h-6" />
             </button>
           </div>
+
 
           <div className="relative mb-6">
             <input
@@ -655,6 +846,7 @@ function Dashboard() {
               </svg>
             </div>
           </div>
+
 
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 pr-2">
             <ul className="space-y-2">
@@ -695,6 +887,7 @@ function Dashboard() {
             </ul>
           </div>
 
+
           {user && (
             <button
               onClick={handleLogout}
@@ -733,10 +926,27 @@ function Dashboard() {
                   className="absolute top-0 left-0 w-full h-full object-contain rounded-lg"
                   muted={false}
                 />
+                {/* Subtitles overlay */}
+                {isSubtitlesEnabled && (
+                  <div className="absolute bottom-32 left-0 right-0 flex flex-col items-center gap-3 px-4 z-10">
+                    {remoteSubtitles && (
+                      <div className="bg-black/80 backdrop-blur-sm text-white px-6 py-3 rounded-2xl max-w-2xl text-center text-lg animate-fade-in shadow-lg border border-gray-700/30">
+                        {remoteSubtitles}
+                      </div>
+                    )}
+                    {subtitlesText && (
+                      <div className="bg-blue-900/80 backdrop-blur-sm text-white px-6 py-3 rounded-2xl max-w-2xl text-center text-lg animate-fade-in shadow-lg border border-blue-500/30">
+                        {subtitlesText}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* </div> */}
               </>
 
+
             )}
+
 
             <div className="fixed bottom-[75px] md:bottom-0  left-1 bg-gray-900 rounded-lg overflow-hidden shadow-lg p-2 flex flex-col items-center max-w-[280px]">
               {/* <video
@@ -814,6 +1024,7 @@ function Dashboard() {
                 )}
               </div>
 
+
               {/* {recordings.length > 0 && (
                 <div className="mt-3 w-full overflow-auto max-h-[150px]">
                   <h4 className="text-white text-sm mb-2">Recordings:</h4>
@@ -828,7 +1039,9 @@ function Dashboard() {
                   ))}
                 </div>
               )} */}
+              )} */}
             </div>
+
 
             <div className="absolute top-4 left-4 text-white text-lg font-bold flex gap-2 items-center">
               <button
@@ -840,6 +1053,7 @@ function Dashboard() {
               </button>
               {callerName || (chatPartnerUser?.username || "Caller")}
             </div>
+
 
             {(callAccepted || reciveCall) && (
               <div className="absolute bottom-4 w-full flex justify-center gap-4 z-10">
@@ -878,9 +1092,22 @@ function Dashboard() {
                 >
                   {isScreenSharing ? <FaStop size={24} /> : <FaShareAlt size={24} />}
                 </button>
+                <button
+                  type="button"
+                  onClick={toggleSubtitles}
+                  className={`p-4 rounded-full text-white shadow-lg cursor-pointer transition-colors ${
+                    isSubtitlesEnabled ? "bg-blue-600" : "bg-gray-600 hover:bg-gray-700"
+                  }`}
+                  title={isSubtitlesEnabled ? "Disable Subtitles" : "Enable Live Subtitles"}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                  </svg>
+                </button>
               </div>
             )}
           </div>
+
 
           {!isChatMinimized ? (
             <div className="md:w-2/5 bg-gray-900 text-white flex flex-col justify-between rounded-lg m-3 shadow-lg border border-gray-700 max-h-screen transition-all duration-300 z-1">
@@ -909,6 +1136,7 @@ function Dashboard() {
                 </button>
               </div>
 
+
               <div
                 className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800"
                 id="chat-messages"
@@ -916,6 +1144,7 @@ function Dashboard() {
                 {chatMessages.length === 0 && (
                   <p className="text-gray-500 text-center mt-6">Start the conversation!</p>
                 )}
+
 
                 {chatMessages.map((msg, index) => {
                   const isMe = msg.from === me;
@@ -938,6 +1167,45 @@ function Dashboard() {
                 })}
               </div>
 
+
+              <form
+                onSubmit={sendMessage}
+                className="flex p-3 border-t border-gray-700 bg-gray-800 rounded-b-lg"
+              >
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 rounded-lg px-3 py-2 focus:outline-none text-white"
+                  disabled={!chatPartnerId}
+                />
+                <button
+                  type="submit"
+                  className="ml-2 bg-blue-600 hover:bg-blue-800 rounded-lg px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!chatInput.trim() || !chatPartnerId}
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+          ) : (
+            // Minimized chat panel bar
+            <div
+              className=" bottom-4 right-4 z-50 bg-gray-900 text-white rounded-lg shadow-lg cursor-pointer p-2 flex items-center gap-2 "
+              onClick={() => {
+                setIsChatMinimized(false);
+                setHasUnreadMessages(false);
+              }}
+              title="Open Chat"
+              style={{ width: '60px', height: '40px' }}
+            >
+              <FaCommentDots size={24} />
+              {hasUnreadMessages && (
+                <span className="  top-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-red-600 animate-pulse" />
+              )}
+            </div>
+          )}
               <form
                 onSubmit={sendMessage}
                 className="flex p-3 border-t border-gray-700 bg-gray-800 rounded-b-lg"
@@ -979,39 +1247,46 @@ function Dashboard() {
         </div>
       ) : (
         <div className="flex-1 p-8 md:ml-72 text-white">
+        <div className="flex-1 p-8 md:ml-72 text-white">
           <button
             type="button"
+            className="flex md:hidden items-center justify-center w-10 h-10 mb-6 text-white hover:text-gray-300 transition-colors"
             className="flex md:hidden items-center justify-center w-10 h-10 mb-6 text-white hover:text-gray-300 transition-colors"
             onClick={() => setIsSidebarOpen(true)}
           >
             <FaBars className="w-6 h-6" />
+            <FaBars className="w-6 h-6" />
           </button>
+
 
           <div className="relative flex flex-col items-center justify-center gap-8 mb-8 rounded-2xl shadow-2xl overflow-hidden min-h-[400px]">
             {/* Gradient background */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-purple-600/20"></div>
             {/* Animated pattern overlay */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[length:20px_20px]"></div>
-            
+           
             <div className="relative z-10 w-48 h-48 mb-4">
               <Lottie animationData={wavingAnimation} loop autoplay />
             </div>
-            
+           
             <div className="relative z-10 text-center px-6 max-w-2xl mx-auto">
               <h1 className="text-5xl font-extrabold mb-6 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 text-transparent bg-clip-text">
                 Welcome back, {user?.fullname || "Guest"}! 👋
               </h1>
               <p className="text-2xl text-gray-300 leading-relaxed">
                 Ready to connect with friends? Start a <span className="text-blue-400 font-semibold">video call</span> or <span className="text-purple-400 font-semibold">chat</span> instantly!
+              <p className="text-2xl text-gray-300 leading-relaxed">
+                Ready to connect with friends? Start a <span className="text-blue-400 font-semibold">video call</span> or <span className="text-purple-400 font-semibold">chat</span> instantly!
               </p>
             </div>
           </div>
+
 
           <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-2xl p-8 shadow-xl border border-gray-700/30">
             <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text">
               Quick Start Guide
             </h2>
-            
+           
             <div className="grid md:grid-cols-2 gap-6">
               {[
                 {
@@ -1048,7 +1323,10 @@ function Dashboard() {
         </div>
       )}
 
+
       {showUserDetailModal && modalUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
@@ -1062,6 +1340,17 @@ function Dashboard() {
               </div>
               <h3 className="text-2xl font-bold text-white mb-2">{modalUser.username}</h3>
               <p className="text-gray-400 mb-6">{modalUser.email}</p>
+              <div className="relative mb-6">
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 opacity-75 blur"></div>
+                <img
+                  src={modalUser.profilepic || "/default-avatar.png"}
+                  alt="User"
+                  className="relative w-24 h-24 rounded-full border-2 border-white shadow-xl"
+                />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">{modalUser.username}</h3>
+              <p className="text-gray-400 mb-6">{modalUser.email}</p>
+
 
               <div className="flex gap-4 w-full">
                 <button
@@ -1071,12 +1360,16 @@ function Dashboard() {
                     setShowUserDetailModal(false);
                   }}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
+                  <FaPhoneAlt className="w-4 h-4" />
+                  <span>Start Call</span>
                   <FaPhoneAlt className="w-4 h-4" />
                   <span>Start Call</span>
                 </button>
                 <button
                   onClick={() => setShowUserDetailModal(false)}
+                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                   className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                 >
                   Cancel
@@ -1087,7 +1380,10 @@ function Dashboard() {
         </div>
       )}
 
+
       {callRejectedPopUp && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
@@ -1102,12 +1398,17 @@ function Dashboard() {
               <h3 className="text-2xl font-bold text-white mb-2">{rejectorData.name}</h3>
               <p className="text-red-400 font-medium mb-6">Call Rejected</p>
 
+
               <div className="flex gap-4 w-full">
                 <button
                   type="button"
                   onClick={() => startCall()}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                  onClick={() => startCall()}
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
+                  <FaPhoneAlt className="w-4 h-4" />
+                  <span>Try Again</span>
                   <FaPhoneAlt className="w-4 h-4" />
                   <span>Try Again</span>
                 </button>
@@ -1119,7 +1420,9 @@ function Dashboard() {
                     setShowUserDetailModal(false);
                   }}
                   className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
+                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200"
                 >
+                  Close
                   Close
                 </button>
               </div>
@@ -1128,7 +1431,10 @@ function Dashboard() {
         </div>
       )}
 
+
       {reciveCall && !callAccepted && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-700/50">
             <div className="flex flex-col items-center">
@@ -1144,12 +1450,16 @@ function Dashboard() {
               <p className="text-gray-400 mb-6">{caller?.email}</p>
               <p className="text-blue-400 font-medium mb-6 animate-pulse">Incoming Call...</p>
 
+
               <div className="flex gap-4 w-full">
                 <button
                   type="button"
                   onClick={handelacceptCall}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
+                  <FaPhoneAlt className="w-4 h-4" />
+                  <span>Accept</span>
                   <FaPhoneAlt className="w-4 h-4" />
                   <span>Accept</span>
                 </button>
@@ -1157,7 +1467,10 @@ function Dashboard() {
                   type="button"
                   onClick={handelrejectCall}
                   className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-medium shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                 >
+                  <FaPhoneSlash className="w-4 h-4" />
+                  <span>Decline</span>
                   <FaPhoneSlash className="w-4 h-4" />
                   <span>Decline</span>
                 </button>
@@ -1170,4 +1483,6 @@ function Dashboard() {
   );
 }
 
+
 export default Dashboard;
+

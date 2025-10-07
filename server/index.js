@@ -47,6 +47,36 @@ app.get('/', (req, res) => {
   res.json("Server is running!");
 })
 
+// Translate proxy endpoint - uses LibreTranslate or configured translate service.
+app.post('/translate', async (req, res) => {
+  try {
+    const { q, source = 'auto', target } = req.body || {};
+    if (!q || !target) return res.status(400).json({ error: 'Missing `q` (text) or `target` language.' });
+
+    const translateUrl = process.env.TRANSLATE_URL || 'https://libretranslate.de/translate';
+    const payload = { q, source, target, format: 'text' };
+    if (process.env.TRANSLATE_API_KEY) payload.api_key = process.env.TRANSLATE_API_KEY;
+
+    const resp = await fetch(translateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      return res.status(502).json({ error: 'Translation service error', details: body });
+    }
+
+    const data = await resp.json();
+    const translatedText = data.translatedText || data.translated_text || data.translated || data.result || (typeof data === 'string' ? data : null) || data;
+    return res.json({ translatedText });
+  } catch (err) {
+    console.error('[ERROR] /translate', err);
+    return res.status(500).json({ error: 'Translation failed', details: String(err) });
+  }
+});
+
 const io = new Server(server, {
   pingTimeout: 60000, // ⏳ Set timeout for inactive users (1 minute)
   cors: {
@@ -173,6 +203,35 @@ io.on("connection", (socket) => {
 
     // Emit message to the recipient room (userId) only
     io.to(message.to).emit("chat-message", message);
+  });
+
+  // 🔊 Forward live caption text from one peer to another
+  socket.on('caption', (data) => {
+    // data: { from, to, text }
+    if (!data || !data.to) return;
+    const recipient = onlineUsers.find((u) => u.userId === data.to);
+    if (recipient && recipient.socketId) {
+      io.to(recipient.socketId).emit('caption', data);
+    }
+  });
+
+  // 🔔 Request captions from a peer (forward the request)
+  socket.on('request-captions', (data) => {
+    // data: { from, to }
+    if (!data || !data.to) return;
+    const recipient = onlineUsers.find((u) => u.userId === data.to);
+    if (recipient && recipient.socketId) {
+      io.to(recipient.socketId).emit('request-captions', { from: data.from });
+    }
+  });
+
+  // ✋ Stop captions request (forward the stop signal)
+  socket.on('stop-captions', (data) => {
+    if (!data || !data.to) return;
+    const recipient = onlineUsers.find((u) => u.userId === data.to);
+    if (recipient && recipient.socketId) {
+      io.to(recipient.socketId).emit('stop-captions', { from: data.from });
+    }
   });
 
   // ❌ Handle user disconnecting from the server
