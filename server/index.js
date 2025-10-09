@@ -103,11 +103,11 @@ io.on("connection", (socket) => {
     }
 
     io.to(callee.socketId).emit("callToUser", {
-      signal: data.signalData, // WebRTC signal data
-      from: data.from, // Caller IDz
-      name: data.name, // Caller name
-      email: data.email, // Caller email
-      profilepic: data.profilepic, // Caller profile picture
+      signal: data.signalData, 
+      from: data.from, 
+      name: data.name, 
+      email: data.email, 
+      profilepic: data.profilepic, 
     });
   });
 
@@ -123,8 +123,8 @@ io.on("connection", (socket) => {
 
   socket.on("reject-call", (data) => {
     io.to(data.to).emit("callRejected", {
-      name: data.name, // Rejected user's name
-      profilepic: data.profilepic // Rejected user's profile picture
+      name: data.name, 
+      profilepic: data.profilepic 
     });
   });
 
