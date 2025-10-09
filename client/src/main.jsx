@@ -4,7 +4,6 @@ import './index.css'
 import App from './App.jsx'
 import process from "process";
 
-
 import { UserProvider } from './context/UserContextApi.jsx';
 
 window.process = process;
