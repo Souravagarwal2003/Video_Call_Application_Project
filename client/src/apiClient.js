@@ -3,8 +3,8 @@ import axios from 'axios';
 
 // Create an instance of Axios
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  withCredentials: true, // This ensures cookies are sent with requests
+  baseURL: `${import.meta.env.VITE_BACKEND_URL}/api`,
+  withCredentials: true,
 });
 
 // Optionally, you can add request and response interceptors
